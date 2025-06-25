@@ -1,0 +1,12 @@
+package rules;
+
+import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.domain.Alerta;
+
+dialect "mvel";
+
+declare SinaisVitais
+    @role( event )
+    @timestamp( timestamp  )
+    @expires( 120s )
+end
