@@ -8,7 +8,6 @@ import org.kie.api.builder.KieFileSystem;
 import org.kie.api.builder.KieModule;
 import org.kie.api.conf.EventProcessingOption;
 import org.kie.api.runtime.KieContainer;
-import org.kie.api.runtime.KieSession;
 import org.kie.internal.io.ResourceFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,11 +28,9 @@ public class DroolsConfig {
     }
 
     @Bean
-    public KieSession getKieSession() {
+    public KieBase kieBase(KieContainer kieContainer) {
         KieBaseConfiguration kieBaseConfiguration = kieServices.newKieBaseConfiguration();
         kieBaseConfiguration.setOption(EventProcessingOption.STREAM);
-        KieBase kieBase = getKieContainer().newKieBase(kieBaseConfiguration);
-
-        return kieBase.newKieSession();
+        return kieContainer.newKieBase(kieBaseConfiguration);
     }
 }

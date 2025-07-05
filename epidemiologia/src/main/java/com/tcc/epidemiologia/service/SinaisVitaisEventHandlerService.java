@@ -2,27 +2,28 @@ package com.tcc.epidemiologia.service;
 
 import com.tcc.epidemiologia.api.dto.SinaisVitaisDTO;
 import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.service.drools.DroolsShardManager;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SinaisVitaisEventHandlerService {
 
     private final BairroService bairroService;
-    private final DroolsService droolsService;
+    private final DroolsShardManager shardManager;
 
-    public SinaisVitaisEventHandlerService(BairroService bairroService, DroolsService droolsService) {
+    public SinaisVitaisEventHandlerService(BairroService bairroService,
+                                           DroolsShardManager shardManager) {
         this.bairroService = bairroService;
-        this.droolsService = droolsService;
+        this.shardManager = shardManager;
     }
 
-    /**
-     * Insere eventos (sinais vitais) na engine.
-     */
     public void processar(SinaisVitaisDTO dto) {
         BairroService.Bairro bairro = bairroService.buscar(dto.latitude(), dto.longitude());
-        if (bairro == null)
+        if (bairro == null) {
             throw new CoordenadasInvalidaException();
-
-        droolsService.insert(SinaisVitais.create(dto, bairro.getCodigo()));
+        }
+        // cria evento com codigoBairro
+        SinaisVitais evento = SinaisVitais.create(dto, bairro.getCodigo());
+        shardManager.submitEvent(evento);
     }
 }

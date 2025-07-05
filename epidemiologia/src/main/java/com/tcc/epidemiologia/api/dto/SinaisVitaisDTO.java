@@ -1,7 +1,11 @@
 package com.tcc.epidemiologia.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
+import java.time.Instant;
+import java.time.LocalDateTime;
+
 public record SinaisVitaisDTO(
-        Long userId,
         Double temperatura,
         Integer pressaoSistolica,
         Integer pressaoDiastolica,
@@ -10,5 +14,5 @@ public record SinaisVitaisDTO(
         Integer spo2,
         Double latitude,
         Double longitude,
-        String timestamp
+        long timestamp
 ) {}

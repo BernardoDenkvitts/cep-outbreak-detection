@@ -10,35 +10,36 @@ import org.locationtech.jts.io.WKBReader;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class BairroService {
 
+    private final Map<Long, String> codigoToNome = new ConcurrentHashMap<>();
     private final STRtree index = new STRtree();
     private final GeometryFactory geometryFactory;
 
-    public BairroService(FeatureDao dao, GeometryFactory geometryFactory, WKBReader wkbReader) {
+    public BairroService(FeatureDao dao,
+                         GeometryFactory geometryFactory,
+                         WKBReader wkbReader) {
         this.geometryFactory = geometryFactory;
-
+        FeatureResultSet rs = dao.queryForAll();
         try {
-            FeatureResultSet rs = dao.queryForAll();
             while (rs.moveToNext()) {
                 FeatureRow row = rs.getRow();
-
-                // Lê a geometria em formato WKB e converte para objeto Geometry
                 byte[] wkb = row.getGeometry().getWkb();
                 Geometry geom = wkbReader.read(wkb);
-
                 long codigo = Long.parseLong(row.getValue("CD_SUBDIST").toString());
                 String nome = row.getValue("NM_SUBDIST").toString();
                 Bairro bairro = new Bairro(codigo, nome, geom);
-
-                // Insere o bairro no índice espacial (STRtree)
+                codigoToNome.put(codigo, nome);
                 index.insert(geom.getEnvelopeInternal(), bairro);
             }
             index.build();
-        } catch (IOException | NumberFormatException | ParseException e) {
+        } catch (IOException | ParseException e) {
             throw new RuntimeException(e);
         }
     }
@@ -83,6 +84,14 @@ public class BairroService {
                 .filter(bairro -> bairro.getGeometry().contains(ponto))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public List<Long> getAllCodigos() {
+        return new ArrayList<>(codigoToNome.keySet());
+    }
+
+    public String getNomeByCodigo(long codigo) {
+        return codigoToNome.get(codigo);
     }
 
     public static class Bairro {
