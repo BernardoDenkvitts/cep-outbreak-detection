@@ -2,11 +2,108 @@ package rules;
 
 import com.tcc.epidemiologia.domain.SinaisVitais;
 import com.tcc.epidemiologia.domain.Alerta;
+import com.tcc.epidemiologia.domain.EventoClinico;
+import com.tcc.epidemiologia.utils.TempoUtils
+import java.time.LocalDateTime;
 
-dialect "mvel";
+import com.tcc.epidemiologia.service.BairroService;
+import java.time.Instant
+import java.util.Date
+global BairroService bairroService;
+
+dialect "java";
 
 declare SinaisVitais
     @role( event )
     @timestamp( timestamp  )
-    @expires( 120s )
+    @expires( 60s )
+end
+
+declare EventoClinico
+    @role( event )
+    @timestamp( timestamp )
+    @expires( 29d )
+end
+
+
+// Intervalo de confiança de 95%
+function boolean hasAumentoSignificativo(double s0, double s1, double s2, double s3) {
+    double media = (s1 + s2 + s3) / 3.0;
+    double desvio = Math.sqrt(
+            (Math.pow(s1 - media, 2) +
+                    Math.pow(s2 - media, 2) +
+                    Math.pow(s3 - media, 2)) / 3.0
+    );
+    return s0 > media + 1.96 * desvio;
+}
+
+global Integer MINIMO_CASOS;
+
+rule "Possível Síndrome Respiratoria Aguda Grave (SRAG)"
+    when
+        $e: SinaisVitais(
+                temperatura >= 38.0,
+                frequenciaRespiratoria > 24 || spo2 < 94 || frequenciaCardiaca > 100,
+                $bairro : codigoBairro
+            ) from entry-point "entrada-sinais-vitais"
+    then
+        insert(new EventoClinico("SRAG", $bairro, $e.timestamp()));
+
+end
+
+rule "Surto de SRAG"
+    no-loop true
+    when
+        $ref : EventoClinico(tipo == "SRAG", timestamp >= TempoUtils.diasAtras(7))
+        not( Alerta( tipo == "Síndrome Respiratoria Aguda Grave", bairroCodigo == $ref.codigoBairro ) )
+
+        $bairro : Long() from $ref.codigoBairro
+
+        // Semana atual=últimos 7 dias
+        $sem0 : Number() from accumulate(
+            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
+                          timestamp >= TempoUtils.diasAtras(7)),
+            count(1)
+        )
+
+        // Semana -1=8 a 14 dias atrás
+        $sem1 : Number() from accumulate(
+            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
+                          timestamp >= TempoUtils.diasAtras(14),
+                          timestamp <  TempoUtils.diasAtras(7)),
+            count(1)
+        )
+
+        // Semana -2=15 a 21 dias atrás
+        $sem2 : Number() from accumulate(
+            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
+                          timestamp >= TempoUtils.diasAtras(21),
+                          timestamp <  TempoUtils.diasAtras(14)),
+            count(1)
+        )
+
+        // Semana -3=22 a 28 dias atrás
+        $sem3 : Number() from accumulate(
+            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
+                          timestamp >= TempoUtils.diasAtras(28),
+                          timestamp <  TempoUtils.diasAtras(21)),
+            count(1)
+        )
+
+        eval($sem1.doubleValue() + $sem2.doubleValue() + $sem3.doubleValue() >= MINIMO_CASOS)
+        eval(hasAumentoSignificativo(
+            $sem0.doubleValue(),
+            $sem1.doubleValue(),
+            $sem2.doubleValue(),
+            $sem3.doubleValue()))
+    then
+        String sinaisVitais = "test";
+        Alerta alerta = new Alerta(
+            TempoUtils.clock.getAsLong(),
+            "Síndrome Respiratoria Aguda Grave",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro,
+            sinaisVitais
+        );
+        insert(alerta);
 end

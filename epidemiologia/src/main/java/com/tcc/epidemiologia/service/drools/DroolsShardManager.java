@@ -17,7 +17,7 @@ public class DroolsShardManager {
     public DroolsShardManager(KieBase kieBase, BairroService bairroService) {
         List<Long> codigos = bairroService.getAllCodigos();
         codigos.forEach(codigo -> {
-            SessionWorker worker = new SessionWorker(codigo, kieBase);
+            SessionWorker worker = new SessionWorker(codigo, kieBase, bairroService);
             shards.put(codigo, worker);
             worker.start();
         });

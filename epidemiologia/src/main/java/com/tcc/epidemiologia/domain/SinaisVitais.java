@@ -2,9 +2,6 @@ package com.tcc.epidemiologia.domain;
 
 import com.tcc.epidemiologia.api.dto.SinaisVitaisDTO;
 
-import java.time.Instant;
-import java.util.Date;
-
 public record SinaisVitais(
         Double temperatura,
         Integer pressaoSistolica,
