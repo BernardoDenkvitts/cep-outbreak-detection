@@ -26,7 +26,7 @@ declare EventoClinico
 end
 
 
-// Intervalo de confiança de 95%
+// Limiar Epidemico baseado em desvio padrao - Intervalo de confiança de 95%
 function boolean hasAumentoSignificativo(double s0, double s1, double s2, double s3) {
     double media = (s1 + s2 + s3) / 3.0;
     double desvio = Math.sqrt(
@@ -39,19 +39,69 @@ function boolean hasAumentoSignificativo(double s0, double s1, double s2, double
 
 global Integer MINIMO_CASOS;
 
+rule "Desconforto Respiratório Significativo"
+    when
+        $e: SinaisVitais(
+            (frequenciaRespiratoria > 20 || frequenciaRespiratoria < 12),
+            spo2 < 94,
+            $bairro : codigoBairro
+        ) from entry-point "entrada-sinais-vitais"
+    then
+        insert(new EventoClinico("Desconforto Respiratório Significativo", $bairro, $e.timestamp()));
+end
+
+rule "Depressão do Sistema Nervoso Central - Possível Intoxicação"
+    when
+        $e: SinaisVitais(
+            frequenciaRespiratoria < 12,
+            frequenciaCardiaca < 60,
+            $bairro : codigoBairro
+        ) from entry-point "entrada-sinais-vitais"
+    then
+        insert(new EventoClinico("Depressão do SNC - Suspeita de Intoxicação", $bairro, $e.timestamp()));
+end
+
+rule "Choque Cardiogênico ou Intoxicação"
+    when
+        $e: SinaisVitais(
+            (pressaoSistolica < 90 || pressaoDiastolica < 60),
+            frequenciaCardiaca < 60,
+            $bairro : codigoBairro
+        ) from entry-point "entrada-sinais-vitais"
+    then
+        insert(new EventoClinico("Choque Cardiogênico ou Intoxicação Cardiovascular", $bairro, $e.timestamp()));
+end
+
+rule "Possível Sepse"
+    when
+        $e: SinaisVitais( $bairro : codigoBairro ) from entry-point "entrada-sinais-vitais"
+        $temp: Boolean() from ($e.temperatura() > 38 || $e.temperatura < 36)
+        $fc : Boolean() from ($e.frequenciaCardiaca() >= 90)
+        $fr : Boolean() from ($e.frequenciaRespiratoria() > 20)
+        // Deve ter pelo menos 2 sintomas (qSOFA)
+        eval (
+            (
+                ($temp ? 1 : 0) +
+                ($fr ? 1 : 0) +
+                ($fc ? 1 : 0)
+            ) >= 2
+        )
+    then
+        insert(new EventoClinico("Sepse", $bairro, $e.timestamp()));
+end
+
 rule "Possível Síndrome Respiratoria Aguda Grave (SRAG)"
     when
         $e: SinaisVitais(
                 temperatura >= 38.0,
-                frequenciaRespiratoria > 24 || spo2 < 94 || frequenciaCardiaca > 100,
+                frequenciaRespiratoria >= 30 || frequenciaRespiratoria < 12 || spo2 < 94,
                 $bairro : codigoBairro
             ) from entry-point "entrada-sinais-vitais"
     then
         insert(new EventoClinico("SRAG", $bairro, $e.timestamp()));
-
 end
 
-rule "Surto de SRAG"
+rule "Possível Surto de SRAG"
     no-loop true
     when
         $ref : EventoClinico(tipo == "SRAG", timestamp >= TempoUtils.diasAtras(7))
@@ -107,3 +157,5 @@ rule "Surto de SRAG"
         );
         insert(alerta);
 end
+
+// ------------------------------------------------------------------------------------------------------ //
