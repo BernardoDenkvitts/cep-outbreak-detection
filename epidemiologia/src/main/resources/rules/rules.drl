@@ -3,7 +3,6 @@ package rules;
 import com.tcc.epidemiologia.domain.SinaisVitais;
 import com.tcc.epidemiologia.domain.Alerta;
 import com.tcc.epidemiologia.domain.EventoClinico;
-import com.tcc.epidemiologia.utils.TempoUtils
 import java.time.LocalDateTime;
 
 import com.tcc.epidemiologia.service.BairroService;
@@ -101,61 +100,38 @@ rule "Possível Síndrome Respiratoria Aguda Grave (SRAG)"
         insert(new EventoClinico("SRAG", $bairro, $e.timestamp()));
 end
 
-rule "Possível Surto de SRAG"
-    no-loop true
-    when
-        $ref : EventoClinico(tipo == "SRAG", timestamp >= TempoUtils.diasAtras(7))
-        not( Alerta( tipo == "Síndrome Respiratoria Aguda Grave", bairroCodigo == $ref.codigoBairro ) )
+// ------------------------------------------------------------------------------------------------------ //
 
+rule "Possível Surto de SRAG"
+    when
+        $ref : EventoClinico( tipo == "SRAG" )
+        not( Alerta( tipo == "Possível Surto de Síndrome Respiratoria Aguda Grave", bairroCodigo == $ref.codigoBairro ) )
         $bairro : Long() from $ref.codigoBairro
 
-        // Semana atual=últimos 7 dias
-        $sem0 : Number() from accumulate(
-            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
-                          timestamp >= TempoUtils.diasAtras(7)),
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "SRAG", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "SRAG", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "SRAG", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "SRAG", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
             count(1)
         )
 
-        // Semana -1=8 a 14 dias atrás
-        $sem1 : Number() from accumulate(
-            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
-                          timestamp >= TempoUtils.diasAtras(14),
-                          timestamp <  TempoUtils.diasAtras(7)),
-            count(1)
-        )
-
-        // Semana -2=15 a 21 dias atrás
-        $sem2 : Number() from accumulate(
-            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
-                          timestamp >= TempoUtils.diasAtras(21),
-                          timestamp <  TempoUtils.diasAtras(14)),
-            count(1)
-        )
-
-        // Semana -3=22 a 28 dias atrás
-        $sem3 : Number() from accumulate(
-            EventoClinico(tipo == "SRAG", codigoBairro == $bairro,
-                          timestamp >= TempoUtils.diasAtras(28),
-                          timestamp <  TempoUtils.diasAtras(21)),
-            count(1)
-        )
-
-        eval($sem1.doubleValue() + $sem2.doubleValue() + $sem3.doubleValue() >= MINIMO_CASOS)
-        eval(hasAumentoSignificativo(
-            $sem0.doubleValue(),
-            $sem1.doubleValue(),
-            $sem2.doubleValue(),
-            $sem3.doubleValue()))
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
     then
-        String sinaisVitais = "test";
-        Alerta alerta = new Alerta(
-            TempoUtils.clock.getAsLong(),
-            "Síndrome Respiratoria Aguda Grave",
+        insert(Alerta.create(
+            new java.util.Date($ref.timestamp()).getTime(),
+            "Possível Surto de Síndrome Respiratoria Aguda Grave",
             bairroService.getNomeByCodigo($bairro),
-            $bairro,
-            sinaisVitais
-        );
-        insert(alerta);
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
 end
 
-// ------------------------------------------------------------------------------------------------------ //
