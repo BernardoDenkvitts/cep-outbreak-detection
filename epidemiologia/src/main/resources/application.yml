@@ -1,13 +1,19 @@
 spring:
   application:
     name: epidemiologia
+    
   threads:
     virtual:
       enabled: true
 
+  profiles:
+    active: dev
+
 # path para o arquivo GPKG
 geotools:
   geopackage:
-    path:
+    path: 
 
-valor-minimo-casos: 1200
+valor-minimo-casos: 
+
+drools.clock-type: pseudo
