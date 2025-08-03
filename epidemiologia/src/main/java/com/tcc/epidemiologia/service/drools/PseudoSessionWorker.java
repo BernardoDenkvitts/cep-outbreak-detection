@@ -2,7 +2,6 @@ package com.tcc.epidemiologia.service.drools;
 
 import java.util.concurrent.TimeUnit;
 
-import org.checkerframework.checker.units.qual.min;
 import org.drools.core.time.SessionPseudoClock;
 import org.kie.api.KieBase;
 
