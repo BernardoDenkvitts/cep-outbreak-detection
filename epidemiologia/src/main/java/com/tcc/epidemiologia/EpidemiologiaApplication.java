@@ -1,17 +1,15 @@
 package com.tcc.epidemiologia;
 
-import mil.nga.geopackage.GeoPackage;
-import mil.nga.geopackage.GeoPackageManager;
-import mil.nga.geopackage.features.user.FeatureDao;
-import mil.nga.geopackage.srs.SpatialReferenceSystem;
-import mil.nga.geopackage.srs.SpatialReferenceSystemDao;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.scheduling.annotation.EnableAsync;
 
-import java.io.File;
 
 @SpringBootApplication
+@EnableAsync
+@EnableRetry
 public class EpidemiologiaApplication implements CommandLineRunner {
 
 	public static void main(String[] args) {
