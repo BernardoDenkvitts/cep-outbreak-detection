@@ -34,7 +34,7 @@ public class EmailService {
         backoff = @org.springframework.retry.annotation.Backoff(delay = 5000, multiplier = 2)
     )
     public void send(String to, Alerta alerta) throws MessagingException {
-        logger.info("Enviando email de alerta para " + to + " sobre alerta: " + alerta.tipo() + " no bairro " + alerta.bairro());
+        logger.info("Enviando email de alerta para " + to + " sobre alerta: " + alerta.getTipo() + " no bairro " + alerta.getBairro());
         var mimeMsg = mailSender.createMimeMessage();
         var helper = new MimeMessageHelper(mimeMsg, true, "UTF-8");
         helper.setTo(to);
@@ -50,7 +50,7 @@ public class EmailService {
   }
 
   private String htmlBody(Alerta alerta) {
-      String[] partes = alerta.qtdCasosSemanais().split(", ");
+      String[] partes = alerta.getQtdCasosSemanais().split(", ");
 
       StringBuilder casosHtml = new StringBuilder();
       for (String parte : partes) {
@@ -103,9 +103,9 @@ public class EmailService {
           </html>
           """
           .formatted(
-              alerta.tipo(),
-              alerta.bairro(),
-              new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(alerta.horarioAlerta()),
+              alerta.getTipo(),
+              alerta.getBairro(),
+              new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(alerta.getHorarioAlerta()),
               casosHtml.toString());
   }
 
