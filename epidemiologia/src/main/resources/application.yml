@@ -1,7 +1,6 @@
 valor-minimo-casos: 1200
 
 drools:
-  clock-type: 
   retention.days:
 
 spring:
@@ -13,7 +12,7 @@ spring:
       enabled: true
 
   profiles:
-    active: 
+    active: dev
 
   mail:
     host: smtp.gmail.com
@@ -43,8 +42,7 @@ spring:
           batch_size: 500
         order_inserts: true
         order_updates: true
-        id:
-          new_generator_mappings: true
+
 
 # path para o arquivo GPKG
 geotools:
