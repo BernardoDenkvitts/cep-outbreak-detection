@@ -25,7 +25,7 @@ declare EventoClinico
 end
 
 
-// Limiar Epidemico baseado em desvio padrao - Intervalo de confiança de 95%
+// Limiar Epidemico baseado em desvio padrao com intervalo de confiança de 95%
 function boolean hasAumentoSignificativo(double s0, double s1, double s2, double s3) {
     double media = (s1 + s2 + s3) / 3.0;
     double desvio = Math.sqrt(
@@ -46,7 +46,7 @@ rule "Desconforto Respiratório Significativo"
             $bairro : codigoBairro
         ) from entry-point "entrada-sinais-vitais"
     then
-        insert(new EventoClinico("Desconforto Respiratório Significativo", $bairro, $e.timestamp()));
+        insert(EventoClinico.create("Desconforto Respiratório Significativo", $bairro, $e.timestamp()));
 end
 
 rule "Depressão do Sistema Nervoso Central - Possível Intoxicação"
@@ -57,7 +57,7 @@ rule "Depressão do Sistema Nervoso Central - Possível Intoxicação"
             $bairro : codigoBairro
         ) from entry-point "entrada-sinais-vitais"
     then
-        insert(new EventoClinico("Depressão do SNC - Suspeita de Intoxicação", $bairro, $e.timestamp()));
+        insert(EventoClinico.create("Depressão do SNC - Suspeita de Intoxicação", $bairro, $e.timestamp()));
 end
 
 rule "Choque Cardiogênico ou Intoxicação"
@@ -68,25 +68,14 @@ rule "Choque Cardiogênico ou Intoxicação"
             $bairro : codigoBairro
         ) from entry-point "entrada-sinais-vitais"
     then
-        insert(new EventoClinico("Choque Cardiogênico ou Intoxicação Cardiovascular", $bairro, $e.timestamp()));
+        insert(EventoClinico.create("Choque Cardiogênico ou Intoxicação Cardiovascular", $bairro, $e.timestamp()));
 end
 
 rule "Possível Sepse"
     when
-        $e: SinaisVitais( $bairro : codigoBairro ) from entry-point "entrada-sinais-vitais"
-        $temp: Boolean() from ($e.temperatura() > 38 || $e.temperatura < 36)
-        $fc : Boolean() from ($e.frequenciaCardiaca() >= 90)
-        $fr : Boolean() from ($e.frequenciaRespiratoria() > 20)
-        // Deve ter pelo menos 2 sintomas (qSOFA)
-        eval (
-            (
-                ($temp ? 1 : 0) +
-                ($fr ? 1 : 0) +
-                ($fc ? 1 : 0)
-            ) >= 2
-        )
+        $e: SinaisVitais( frequenciaRespiratoria >= 22, pressaoSistolica <= 100, $bairro : codigoBairro ) from entry-point "entrada-sinais-vitais"
     then
-        insert(new EventoClinico("Sepse", $bairro, $e.timestamp()));
+        insert(EventoClinico.create("Sepse", $bairro, $e.timestamp()));
 end
 
 rule "Possível Síndrome Respiratoria Aguda Grave (SRAG)"
@@ -97,7 +86,36 @@ rule "Possível Síndrome Respiratoria Aguda Grave (SRAG)"
                 $bairro : codigoBairro
             ) from entry-point "entrada-sinais-vitais"
     then
-        insert(new EventoClinico("SRAG", $bairro, $e.timestamp()));
+        insert(EventoClinico.create("SRAG", $bairro, $e.timestamp()));
+end
+
+rule "Possível Síndrome da resposta inflamatória sistêmica (SIRS)"
+    when
+        $e: SinaisVitais( $bairro : codigoBairro ) from entry-point "entrada-sinais-vitais"
+        $temp: Boolean() from ($e.temperatura() > 38 || $e.temperatura < 36)
+        $fc : Boolean() from ($e.frequenciaCardiaca() > 90)
+        $fr : Boolean() from ($e.frequenciaRespiratoria() > 20 || $e.CO2 < 32)
+        // Deve ter pelo menos 2 sintomas
+        eval (
+            (
+                ($temp ? 1 : 0) +
+                ($fr ? 1 : 0) +
+                ($fc ? 1 : 0)
+            ) >= 2
+        )
+    then
+        insert(EventoClinico.create("SIRS", $bairro, $e.timestamp()));
+end
+
+rule "Possível Doenças Cardiovasculares"
+    when 
+        $e: SinaisVitais(
+                pressaoSistolica >= 140 || pressaoDiastolica > 90,
+                frequenciaRespiratoria >= 30 || frequenciaRespiratoria < 12,
+                $bairro : codigoBairro
+            ) from entry-point "entrada-sinais-vitais"
+    then
+        insert(EventoClinico.create("Doenças Cardiovasculares", $bairro, $e.timestamp()));
 end
 
 // ------------------------------------------------------------------------------------------------------ //
@@ -129,9 +147,183 @@ rule "Possível Surto de SRAG"
         eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
     then
         insert(Alerta.create(
-            new java.util.Date($ref.timestamp()).getTime(),
+            $ref.getTimestamp(),
             "Possível Surto de Síndrome Respiratoria Aguda Grave",
             bairroService.getNomeByCodigo($bairro),
             $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
 end
 
+// ------------------------------------------------------------------------------------------------------ //
+
+rule "Possível Surto de Sepse"
+    when
+        $ref : EventoClinico( tipo == "Sepse" )
+        $bairro : Long() from $ref.codigoBairro
+        not( Alerta( tipo == "Possível Surto de Sepse", bairroCodigo == $ref.codigoBairro ) )
+
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "Sepse", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "Sepse", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "Sepse", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "Sepse", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
+            count(1)
+        )
+
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
+    then
+        insert(Alerta.create(
+            $ref.getTimestamp(),
+            "Possível Surto de Sepse",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
+end
+
+// ------------------------------------------------------------------------------------------------------ //
+
+rule "Possível Surto de Choque Cardiogênico ou Intoxicação Cardiovascular"
+    when
+        $ref : EventoClinico( tipo == "Choque Cardiogênico ou Intoxicação Cardiovascular" )
+        not( Alerta( tipo == "Possível Surto de Choque Cardiogênico ou Intoxicação Cardiovascular", bairroCodigo == $ref.codigoBairro ) )
+        $bairro : Long() from $ref.codigoBairro
+
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "Choque Cardiogênico ou Intoxicação Cardiovascular", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "Choque Cardiogênico ou Intoxicação Cardiovascular", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "Choque Cardiogênico ou Intoxicação Cardiovascular", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "Choque Cardiogênico ou Intoxicação Cardiovascular", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
+            count(1)
+        )
+
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
+    then
+        insert(Alerta.create(
+            $ref.getTimestamp(),
+            "Possível Surto de Choque Cardiogênico ou Intoxicação Cardiovascular",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
+end
+
+// ------------------------------------------------------------------------------------------------------ //
+
+rule "Possível Surto de Desconforto Respiratório Significativo"
+    when
+        $ref : EventoClinico( tipo == "Desconforto Respiratório Significativo" )
+        not( Alerta( tipo == "Possível Surto de Desconforto Respiratório Significativo", bairroCodigo == $ref.codigoBairro ) )
+        $bairro : Long() from $ref.codigoBairro
+
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "Desconforto Respiratório Significativo", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "Desconforto Respiratório Significativo", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "Desconforto Respiratório Significativo", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "Desconforto Respiratório Significativo", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
+            count(1)
+        )
+
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
+    then
+        insert(Alerta.create(
+            $ref.getTimestamp(),
+            "Possível Surto de Desconforto Respiratório Significativo",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
+end
+
+// ------------------------------------------------------------------------------------------------------ //
+
+rule "Possível Surto de SIRS"
+    when
+        $ref : EventoClinico( tipo == "SIRS" )
+        not( Alerta( tipo == "Possível Surto de SIRS", bairroCodigo == $ref.codigoBairro ) )
+        $bairro : Long() from $ref.codigoBairro
+
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "SIRS", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "SIRS", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "SIRS", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "SIRS", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
+            count(1)
+        )
+
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
+    then
+        insert(Alerta.create(
+            $ref.getTimestamp(),
+            "Possível Surto de SIRS",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
+end
+
+// ------------------------------------------------------------------------------------------------------ //
+
+rule "Possível Surto de Doenças Cardiovasculares"
+    when
+        $ref : EventoClinico( tipo == "Doenças Cardiovasculares" )
+        not( Alerta( tipo == "Possível Surto de Doenças Cardiovasculares", bairroCodigo == $ref.codigoBairro ) )
+        $bairro : Long() from $ref.codigoBairro
+
+        Number( $semanaAtual : intValue ) from accumulate(
+            EventoClinico( tipo == "Doenças Cardiovasculares", codigoBairro == $bairro, timestamp before[0d, 7d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAnterior : intValue ) from accumulate(
+            EventoClinico( tipo == "Doenças Cardiovasculares", codigoBairro == $bairro, timestamp before[7d, 14d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaRetrasada : intValue ) from accumulate(
+            EventoClinico( tipo == "Doenças Cardiovasculares", codigoBairro == $bairro, timestamp before[14d, 21d] $ref.timestamp ),
+            count(1)
+        )
+        Number( $semanaAntepassada : intValue ) from accumulate(
+            EventoClinico( tipo == "Doenças Cardiovasculares", codigoBairro == $bairro, timestamp before[21d, 28d] $ref.timestamp ),
+            count(1)
+        )
+
+        eval( $semanaAnterior + $semanaRetrasada + $semanaAntepassada >= MINIMO_CASOS )
+        eval( hasAumentoSignificativo($semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada) )
+    then
+        insert(Alerta.create(
+            $ref.getTimestamp(),
+            "Possível Surto de Doenças Cardiovasculares",
+            bairroService.getNomeByCodigo($bairro),
+            $bairro, $semanaAtual, $semanaAnterior, $semanaRetrasada, $semanaAntepassada));
+end
