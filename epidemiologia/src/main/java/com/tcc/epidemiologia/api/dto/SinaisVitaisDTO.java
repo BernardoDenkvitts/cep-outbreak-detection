@@ -9,5 +9,6 @@ public record SinaisVitaisDTO(
         Integer spo2,
         Double latitude,
         Double longitude,
-        long timestamp
+        long timestamp,
+        Integer CO2
 ) {}
