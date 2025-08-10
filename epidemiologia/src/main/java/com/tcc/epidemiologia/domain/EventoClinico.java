@@ -14,15 +14,8 @@ import lombok.Data;
 @Data
 public class EventoClinico {
     @Id
-    @GeneratedValue(
-        strategy = GenerationType.SEQUENCE,
-        generator = "evento_seq"
-    )
-    @SequenceGenerator(
-        name = "evento_seq",
-        sequenceName = "eventos_clinicos_id_seq",
-        allocationSize = 100
-    )
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "evento_seq")
+    @SequenceGenerator(name = "evento_seq", sequenceName = "eventos_clinicos_id_seq", allocationSize = 1)
     private Long id;
 
     @Column(name = "tipo")

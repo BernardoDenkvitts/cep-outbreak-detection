@@ -7,8 +7,8 @@ public record SinaisVitaisDTO(
         Integer frequenciaCardiaca,
         Integer frequenciaRespiratoria,
         Integer spo2,
+        Integer CO2,
         Double latitude,
         Double longitude,
-        long timestamp,
-        Integer CO2
+        long timestamp
 ) {}

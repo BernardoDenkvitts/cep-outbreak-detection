@@ -13,4 +13,3 @@ CREATE TABLE eventos_clinicos (
     codigo_bairro  BIGINT NOT NULL,
     timestamp      BIGINT NOT NULL
 );
-ALTER SEQUENCE eventos_clinicos_id_seq INCREMENT BY 100;

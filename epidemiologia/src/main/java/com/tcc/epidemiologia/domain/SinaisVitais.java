@@ -9,6 +9,7 @@ public record SinaisVitais(
         Integer frequenciaCardiaca,
         Integer frequenciaRespiratoria,
         Integer spo2,
+        Integer CO2,
         long timestamp,
         long codigoBairro
 ) {
@@ -21,6 +22,7 @@ public record SinaisVitais(
                 dto.frequenciaCardiaca(),
                 dto.frequenciaRespiratoria(),
                 dto.spo2(),
+                dto.CO2(),
                 dto.timestamp(),
                 codigoBairro
         );
