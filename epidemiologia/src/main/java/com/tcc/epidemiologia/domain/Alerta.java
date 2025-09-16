@@ -16,7 +16,7 @@ import jakarta.persistence.Id;
 @Table(name = "alertas")
 @Role(Role.Type.EVENT)
 @Timestamp("horarioAlerta")
-@Expires("7d")
+@Expires("3h") // Novo email é enviado a cada 3 horas caso novos possíveis casos sejam recebidos
 @Data
 public class Alerta {
     @Id

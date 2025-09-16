@@ -1,13 +1,11 @@
 package com.tcc.epidemiologia.api.dto;
 
 public record SinaisVitaisDTO(
+        Long id,
         Double temperatura,
-        Integer pressaoSistolica,
-        Integer pressaoDiastolica,
-        Integer frequenciaCardiaca,
-        Integer frequenciaRespiratoria,
-        Integer spo2,
-        Integer CO2,
+        Double frequenciaRespiratoria,
+        Double spo2,
+        Double o2Percent,
         Double latitude,
         Double longitude,
         long timestamp
