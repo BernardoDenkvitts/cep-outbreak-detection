@@ -1,6 +1,6 @@
 package com.tcc.epidemiologia.infrastructure.drools;
 
-import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.domain.IEventoBase;
 import com.tcc.epidemiologia.infrastructure.EventCache;
 import com.tcc.epidemiologia.service.BairroService;
 
@@ -12,7 +12,8 @@ public class RealtimeSessionWorker extends AbstractSessionWorker {
         super(codigoBairro, kieBase, bairroService, eventCache, "realtime", minimoCasos);
     }
 
-    public void insere(SinaisVitais evento) {
+    @Override
+    public void insere(IEventoBase evento) {
         queue.offer(evento);
     }
 }

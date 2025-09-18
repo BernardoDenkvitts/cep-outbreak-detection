@@ -1,7 +1,9 @@
 package com.tcc.epidemiologia.service;
 
 import com.tcc.epidemiologia.api.dto.SinaisVitaisDTO;
-import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.domain.FluxometroEvento;
+import com.tcc.epidemiologia.domain.IEventoBase;
+import com.tcc.epidemiologia.domain.MpIotEvento;
 import com.tcc.epidemiologia.infrastructure.EventCache;
 import com.tcc.epidemiologia.infrastructure.drools.DroolsShardManager;
 
@@ -31,8 +33,15 @@ public class SinaisVitaisEventHandlerService {
         if (bairro == null) {
             throw new CoordenadasInvalidaException();
         }
+        
+        IEventoBase evento;
 
-        SinaisVitais evento = SinaisVitais.create(dto, bairro.getCodigo());
+        if (dto.spo2() != null) {
+            evento = MpIotEvento.create(dto, bairro.getCodigo());
+        } else {
+            evento = FluxometroEvento.create(dto, bairro.getCodigo());
+        }
+        
         shardManager.submitEvent(evento);
     }
 }

@@ -16,19 +16,22 @@ import org.kie.internal.runtime.StatefulKnowledgeSession;
 import org.springframework.stereotype.Component;
 
 import com.tcc.epidemiologia.domain.EventoClinico;
-import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.domain.FluxometroEvento;
+import com.tcc.epidemiologia.domain.IEventoBase;
+import com.tcc.epidemiologia.domain.MpIotEvento;
 import com.tcc.epidemiologia.infrastructure.EventCache;
 import com.tcc.epidemiologia.service.BairroService;
 
 @Component
 public abstract class AbstractSessionWorker extends Thread {
 
-    protected final BlockingQueue<SinaisVitais> queue = new LinkedBlockingQueue<>();
+    protected final BlockingQueue<IEventoBase> queue = new LinkedBlockingQueue<>();
+
     protected final StatefulKnowledgeSession session;
     private static final Logger logger = LogManager.getLogger(AbstractSessionWorker.class);
 
-
-    public AbstractSessionWorker(long codigoBairro, KieBase kieBase, BairroService bairroService, EventCache eventCache, String clockType, Integer minimoCasos) {
+    public AbstractSessionWorker(long codigoBairro, KieBase kieBase, BairroService bairroService, EventCache eventCache,
+            String clockType, Integer minimoCasos) {
         super("Drools-Bairro-" + codigoBairro);
 
         KieSessionConfiguration ksConf = KieServices.Factory.get().newKieSessionConfiguration();
@@ -41,18 +44,22 @@ public abstract class AbstractSessionWorker extends Thread {
         this.session.setGlobal("MINIMO_CASOS", minimoCasos);
         this.session.setGlobal("bairroService", bairroService);
         this.session.setGlobal("eventCache", eventCache);
-        
+
         new Thread(session::fireUntilHalt, getName() + "-Firer").start();
     }
 
-    public abstract void insere(SinaisVitais evento);
+    public abstract void insere(IEventoBase evento);
 
     @Override
     public void run() {
         try {
             while (!isInterrupted()) {
-                SinaisVitais sinaisVitais = queue.take();
-                this.session.getEntryPoint("entrada-sinais-vitais").insert(sinaisVitais);
+                IEventoBase evento = queue.take();
+                if (evento instanceof MpIotEvento mp) {
+                    this.session.getEntryPoint("entrada-mp-iot").insert(mp);
+                } else {
+                    this.session.getEntryPoint("entrada-fluxometro").insert((FluxometroEvento) evento);
+                }
                 logger.info("Evento inserido no Drools");
             }
         } catch (InterruptedException ex) {
@@ -73,7 +80,7 @@ public abstract class AbstractSessionWorker extends Thread {
                 .filter(evento -> evento.getTimestamp() >= corte)
                 .collect(Collectors.toList());
     }
-    
+
     public Integer getTotalEventosPorBairro() {
         return session.getObjects(o -> o instanceof EventoClinico).size();
     }
@@ -81,12 +88,12 @@ public abstract class AbstractSessionWorker extends Thread {
     public void bootstrapEventosClinicos(List<EventoClinico> eventosOrdenadosPorTimestamp) {
         if (eventosOrdenadosPorTimestamp.isEmpty())
             return;
-        
+
         logger.info("Tamanho da lista " + eventosOrdenadosPorTimestamp.size());
         for (EventoClinico evento : eventosOrdenadosPorTimestamp) {
-            logger.info("INSERINDO EVENTO -> " + evento.getCodigoBairro() + " " + evento.getTipo() + " " + new Date(evento.getTimestamp()));
+            logger.info("INSERINDO EVENTO -> " + evento.getCodigoBairro() + " " + evento.getTipo() + " "
+                    + new Date(evento.getTimestamp()));
             this.session.insert(evento);
         }
     }
 }
-

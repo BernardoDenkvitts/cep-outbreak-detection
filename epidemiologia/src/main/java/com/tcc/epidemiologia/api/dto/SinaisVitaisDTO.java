@@ -1,7 +1,10 @@
 package com.tcc.epidemiologia.api.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 public record SinaisVitaisDTO(
-        Long id,
+        @NotNull @NotBlank Long id,
         Double temperatura,
         Double frequenciaRespiratoria,
         Double spo2,

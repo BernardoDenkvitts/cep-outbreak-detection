@@ -1,7 +1,7 @@
 package com.tcc.epidemiologia.infrastructure.drools;
 
 import com.tcc.epidemiologia.domain.EventoClinico;
-import com.tcc.epidemiologia.domain.SinaisVitais;
+import com.tcc.epidemiologia.domain.IEventoBase;
 import com.tcc.epidemiologia.infrastructure.EventCache;
 import com.tcc.epidemiologia.repository.EventoClinicoRepository;
 import com.tcc.epidemiologia.service.BairroService;
@@ -22,12 +22,12 @@ public class DroolsShardManager {
 
     private final EventoClinicoRepository repository;
 
-    @Value("${spring.profiles.active}") 
+    @Value("${spring.profiles.active}")
     private String profile;
 
     @Value("${drools.retention.days}")
     private int retentionDays;
-    
+
     private final Map<Long, AbstractSessionWorker> shards = new ConcurrentHashMap<>();
 
     public DroolsShardManager(
@@ -66,8 +66,8 @@ public class DroolsShardManager {
         shards.values().forEach(Thread::start);
     }
 
-    public void submitEvent(SinaisVitais evento) {
-        AbstractSessionWorker worker = shards.get(evento.codigoBairro());
+    public void submitEvent(IEventoBase evento) {
+        AbstractSessionWorker worker = shards.get(evento.getCodigoBairro());
         worker.insere(evento);
     }
 
@@ -89,7 +89,8 @@ public class DroolsShardManager {
         Map<Long, Integer> eventosPorBairro = new HashMap<>();
         shards.forEach((codigo, worker) -> {
             Integer totalEventos = worker.getTotalEventosPorBairro();
-            if (totalEventos > 0) eventosPorBairro.put(codigo, totalEventos);
+            if (totalEventos > 0)
+                eventosPorBairro.put(codigo, totalEventos);
         });
         return eventosPorBairro;
     }
